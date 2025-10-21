@@ -4,14 +4,37 @@ const numGhosts = 60;
 const maxSpeed = 5;
 const maxForce = 0.6;
 const perceptionRadius = 150;
-const separationDistance = 100;
-const viewAngle = Math.PI / 4;
-let centerHistory = [];
+const separationDistance = 50;
+
+// --- Raw Audio Buffers ---
+// We will load the sound data directly into these buffers.
+let bumpBuffer, whistlingBuffer;
+let darkSound; // This can remain a p5.SoundFile since it's a long loop.
+
+let isSketchStarted = false;
+
+// --- Web Audio API Context ---
+let audioCtx;
+
+// --- Kinect & Annotation Variables ---
 let annotationsOn = false;
-let ws;
-let latestDepthFrame = null;
-let enableKinectConnection = true;
-let bumpSound, darkSound, supriseSound, whistlingSound;
+let ws; // WebSocket for Kinect data
+let latestDepthFrame = null; // Store the latest depth frame
+let enableKinectConnection = true; 
+
+// Helper function to load sound data into a raw AudioBuffer
+// We use a callback because this process is asynchronous.
+function loadAudioBuffer(path, callback) {
+  let request = new XMLHttpRequest(); // Create a new XMLHttpRequest, which is leak-proof
+  request.open('GET', path, true);
+  request.responseType = 'arraybuffer';
+  request.onload = function() {
+    audioCtx.decodeAudioData(request.response, function(buffer) {
+      callback(buffer);
+    });
+  };
+  request.send();
+}
 
 function preload() {
   ghostImages[0] = loadImage("images/ghost_0.png");
@@ -21,15 +44,23 @@ function preload() {
   ghostImages[4] = loadImage("images/ghost_4.png");
   ghostImages[5] = loadImage("images/ghost_5.png");
 
-  bumpSound = loadSound('sounds/bump.wav');
+  // Get the master audio context from p5.js
+  audioCtx = getAudioContext();
+  
+  // Load the short, rapid sounds as raw buffers
+  loadAudioBuffer('sounds/impactWood.wav', (buffer) => {
+    bumpBuffer = buffer;
+  });
+  loadAudioBuffer('sounds/whistling.wav', (buffer) => {
+    whistlingBuffer = buffer;
+  });
+  
+  // Long-running sounds are still fine as p5.SoundFile
   darkSound = loadSound('sounds/dark.wav');
-  supriseSound = loadSound('sounds/surprise.wav');
-  whistlingSound = loadSound('sounds/whistling.wav');
 }
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
-  darkSound.loop();
   imageMode(CENTER);
   for (let i = 0; i < numGhosts; i++) {
     ghosts.push(new Ghost());
@@ -39,27 +70,81 @@ function setup() {
   }
 }
 
+// THIS IS THE NEW, LEAK-PROOF playSound FUNCTION
+function playSound(buffer, volume = 1.0, pan = 0.0, rate = 1.0) {
+  // If the buffer hasn't loaded yet, do nothing.
+  if (!buffer) return;
+
+  // Create a new "player" node. This is a fire-and-forget object.
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.playbackRate.value = rate;
+
+  // Create a gain node for volume control
+  const gainNode = audioCtx.createGain();
+  gainNode.gain.value = constrain(volume, 0, 1);
+
+  // Create a panner node for stereo panning
+  const pannerNode = audioCtx.createStereoPanner();
+  pannerNode.pan.value = constrain(pan, -1, 1);
+
+  // Connect the nodes in a chain: source -> gain -> panner -> speakers
+  source.connect(gainNode);
+  gainNode.connect(pannerNode);
+  pannerNode.connect(audioCtx.destination);
+  
+  // Play the sound immediately and let it be garbage collected.
+  source.start(0);
+}
+
+
+// --- The rest of the file is largely unchanged ---
+
 function draw() {
+  if (!isSketchStarted) {
+    background(0);
+    fill(255);
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    textFont('Copperplate, Papyrus, fantasy');
+    text('Click on the mouse to endure!', width / 2, height / 2);
+    return;
+  }
   frameRate(60);
   background(0);
-  
   for (let ghost of ghosts) {
     ghost.flock(ghosts);
     ghost.update();
     ghost.display();
   }
-  for (let x = 0; x < width; x += 20) {
-        for (let y = 0; y < height; y += 20) {
-            let depthValue = kinectDepth(x, y); // depthValue in mm
-            if (depthValue !== null && depthValue > 0) {
-                // Map depth value to a grayscale color (closer = lighter).
-                // let col = map(depthValue, 300, 2000, 0, 255); // Adjust range as needed
-                fill(200,2);
-                noStroke();
-                ellipse(x, y, 50000/depthValue, 50000/depthValue); // Size inversely proportional to depth
-            }
-        }
+  if (annotationsOn) {
+    for (let ghost of ghosts) {
+      ghost.annotate();
     }
+  }
+  // Visualize depth data
+  for (let x = 0; x < width; x += 20) {
+    for (let y = 0; y < height; y += 20) {
+      let depthValue = kinectDepth(x, y);
+      if (depthValue !== null && depthValue > 0) {
+        fill(255, 1/depthValue * 20000);
+        noStroke();
+        // ellipse(x, y, 50000 / depthValue, 50000 / depthValue);
+        rect(x, y, 10,10);
+      }
+    }
+  }
+}
+
+function mousePressed() {
+  if (!isSketchStarted) {
+    // We must resume the audio context on a user gesture
+    audioCtx.resume().then(() => {
+      console.log('Audio Context resumed successfully.');
+      darkSound.loop();
+      isSketchStarted = true;
+    });
+  }
 }
 
 function keyPressed() {
@@ -93,13 +178,6 @@ function toggleKinectConnection() {
     latestDepthFrame = null;
   }
 }
-
-// function readDepth(i, j) {
-//   if (latestDepthFrame?.depth_data && j >= 0 && j < latestDepthFrame.height && i >= 0 && i < latestDepthFrame.width) {
-//     return latestDepthFrame.depth_data[j][i];
-//   }
-//   return null;
-// }
 
 function kinectDepth(x, y) {
   if (latestDepthFrame?.depth_data) {
