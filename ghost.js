@@ -59,12 +59,15 @@ class Ghost {
       let lastScale = this.scale;
       this.scale = 2000 / avgDepth;
 
-      if (this.scale / lastScale > 1.01 || this.scale > 1.5) {
-        this.imgIndex = 5;
+      if (this.scale / lastScale > 1.01 || this.scale > 1.3) {
+        this.imgIndex = 6;
+        if (this.scale / lastScale > 1.03 || this.scale > 1.5) {
+          this.imgIndex = 5;
+        }
         if (this.isPlayingSound === 0) {
           // Call the new leak-proof function, passing the audio buffer
           let pan = constrain((this.pos.x / width) * 2 - 1, -1, 1);
-          let volume = constrain(this.scale / 6, 0, 0.5);
+          let volume = constrain(this.scale / 8, 0, 0.5);
           let rate = random(0.9, 1.1);
           playSound(whistlingBuffer, volume, pan, rate);
           this.isPlayingSound = 120;
@@ -75,10 +78,13 @@ class Ghost {
     this.colorization.r = constrain(this.scale * this.opacity * 3, 220, 255);
     this.colorization.g = constrain(this.scale * this.opacity * 3.5, 220, 255);
     tint(this.colorization.r, this.colorization.g, this.colorization.b, this.opacity);
+    if (annotationsOn) {
+      tint(this.imgIndex * 40, 255 - this.imgIndex * 40, 100+ this.imgIndex * 30, 255);
+    }
     this.opacity += random(-3, 3);
     this.opacity = constrain(this.opacity, 3, 160);
 
-    image(ghostImages[this.imgIndex], 0, 0, 80 * this.scale * (this.age / 13) ** 0.2, 240 * this.scale * sqrt(this.age / 13));
+    image(ghostImages[this.imgIndex], 0, 0, 160 * this.scale * (this.age / 13) ** 0.2, 240 * this.scale * sqrt(this.age / 13));
     pop();
   }
 
@@ -101,7 +107,7 @@ class Ghost {
     if (turnForce.mag() > 0 && this.isPlayingSound === 0) {
       // Call the new leak-proof function, passing the audio buffer
       let pan = constrain((this.pos.x / width) * 2 - 1, -1, 1);
-      let volume = constrain(this.scale, 0, 1);
+      let volume = constrain(this.scale/20, 0, 1);
       let rate = random(0.9, 1.1);
       playSound(bumpBuffer, volume, pan, rate);
       this.isPlayingSound = 20;
@@ -169,21 +175,23 @@ class Ghost {
     let steerProjection = this.acc.dot(perpVel.normalize());
     let steerMag = abs(steerProjection);
     this.isLeftSteering = steerProjection > 0;
-    if (steerMag < 0.15) {
+    if (steerMag < 0.05) {
       this.imgIndex = 0;
-    } else if (steerMag < 0.3) {
+    } else if (steerMag < 0.1) {
       this.imgIndex = 1;
-    } else {
+    } else if (steerMag < 0.2) {
       this.imgIndex = 2;
+    } else {
+      this.imgIndex = 3;
     }
     if (steerMag < 0.1) {
       let velDir = this.vel.copy().normalize();
       let accDir = this.acc.copy().normalize();
       let dotProduct = velDir.dot(accDir);
       if (dotProduct < -0.7 && this.acc.mag() > 0.1) {
-        this.imgIndex = 3;
+        this.imgIndex = 7; // skid stop
       } else if (dotProduct > 0.7 && this.acc.mag() > 0.1) {
-        this.imgIndex = 4;
+        this.imgIndex = 6; // dash
       }
     }
   }
