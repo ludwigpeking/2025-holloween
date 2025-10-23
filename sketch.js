@@ -1,14 +1,14 @@
 let ghosts = [];
 let ghostImages = [];
-const numGhosts = 20;
+const numGhosts = 40;
 const maxSpeed = 5;
 const maxForce = 0.6;
 const perceptionRadius = 150;
 const separationDistance = 100;
 
-let flockingCohesionWeight = 0.01;
-let flockingAlignmentWeight = 0.02;
-let flockingSeparationWeight = 0.05;
+let flockingCohesionWeight;
+let flockingAlignmentWeight;
+let flockingSeparationWeight;
 
 // --- Raw Audio Buffers ---
 // We will load the sound data directly into these buffers.
@@ -75,11 +75,15 @@ function setup() {
   if (enableKinectConnection) {
     setupKinectConnection();
   }
+  resetGlobals();
 }
 // --- The rest of the file is largely unchanged ---
 
 function draw() {
     frameRate(60);
+    if (frameCount % 36000 === 0) {
+      resetGlobals();
+    }
 
   if (!isSketchStarted) {
     background(255);
@@ -92,7 +96,7 @@ function draw() {
     return;
   }
 
-  if (frameCount % 900 > 600 || permanentAnnotationsOn) {
+  if (frameCount % 1200 > 900 || permanentAnnotationsOn) {
     annotationsOn = true;
   } else {
     annotationsOn = false;
@@ -115,17 +119,17 @@ function draw() {
     for (let ghost of ghosts) {
       ghost.annotate();
     }
-    textSize(16);
+    textSize(25);
     textFont('helvetica, arial, sans-serif');
     textAlign(LEFT, TOP);
     fill(255);
-    text('Richard Qian Li, q.li@nyu.edu', 10, 10);
-    text('Press "A" to toggle debug mode', 10, 60);
-    text('Press Space to Pause/Resume Audio', 10, 100);
-    text( 'Press F5 to Restart Sketch', 10, 120);
-    text('Flocking Cohesion: ' + round(flockingCohesionWeight,3) +'\nPress "+" or "-" to adjust ', 10, 150);
-    text('Flocking Alignment: ' + round(flockingAlignmentWeight,3) + '\nPress "]" or "[" to adjust ', 10, 200);
-    text('Flocking Separation: ' + round(flockingSeparationWeight,3) + '\nPress ">" or "<" to adjust ', 10, 250);
+    text('Richard Qian Li, q.li@nyu.edu', 10, 100);
+    text('Press "A" to toggle debug mode', 10, 250);
+    text('Press Space to Pause/Resume Audio', 10, 300);
+    text( 'Press F5 to Restart Sketch', 10, 350);
+    text('Flocking Cohesion: ' + round(flockingCohesionWeight,3) +'\nPress "+" or "-" to adjust ', 10, 400);
+    text('Flocking Alignment: ' + round(flockingAlignmentWeight,3) + '\nPress "]" or "[" to adjust ', 10, 500);
+    text('Flocking Separation: ' + round(flockingSeparationWeight,3) + '\nPress ">" or "<" to adjust ', 10, 600);
 
   }
 
@@ -150,15 +154,17 @@ function draw() {
     for (let y = 0; y < height; y += 20) {
       let depthValue = kinectDepth(x, y);
       if (depthValue !== null && depthValue > 0 && annotationsOn) {
-        fill(255, 20000/depthValue);
+        fill(255, 30000/depthValue);
         noStroke();
         // ellipse(x, y, 50000 / depthValue, 50000 / depthValue);
-        rect(x, y, 50000 / depthValue);
+        rect(x, y, 15);
       }
     }
   }
 
 }
+
+
 
 function mousePressed() {
   if (!isSketchStarted) {
@@ -285,4 +291,11 @@ function keyPressed() {
     } 
   }
     
+}
+
+function resetGlobals() {
+  flockingCohesionWeight = 0.01;
+  flockingAlignmentWeight = 0.02;
+  flockingSeparationWeight = 0.05;
+  permanentAnnotationsOn = false;
 }

@@ -11,7 +11,7 @@ class Ghost {
     this.imgIndex = 0;
     this.isLeftSteering = true;
     this.depthHistory = [];
-    this.maxDepthHistory = 15;
+    this.maxDepthHistory = 120;
     this.isPlayingSound = 0;
   }
 
@@ -153,7 +153,7 @@ class Ghost {
   }
 
   computeBoundary() {
-    let margin = 50;
+    let margin = 150;
     let turnForce = createVector(0, 0);
     let turnStrength = 0.8;
 
@@ -171,7 +171,7 @@ class Ghost {
     if (turnForce.mag() > 0 && this.isPlayingSound === 0) {
       // Call the new leak-proof function, passing the audio buffer
       let pan = constrain((this.pos.x / width) * 2 - 1, -1, 1);
-      let volume = constrain(this.scale/20, 0, 1);
+      let volume = constrain(this.scale/9, 0, 1);
       let rate = random(0.9, 1.1);
       playSound(bumpBuffer, volume, pan, rate);
       this.isPlayingSound = 20;
