@@ -1,10 +1,14 @@
 let ghosts = [];
 let ghostImages = [];
-const numGhosts = 40;
+const numGhosts = 20;
 const maxSpeed = 5;
 const maxForce = 0.6;
 const perceptionRadius = 150;
 const separationDistance = 100;
+
+let flockingCohesionWeight = 0.01;
+let flockingAlignmentWeight = 0.02;
+let flockingSeparationWeight = 0.05;
 
 // --- Raw Audio Buffers ---
 // We will load the sound data directly into these buffers.
@@ -18,6 +22,7 @@ let audioCtx;
 
 // --- Kinect & Annotation Variables ---
 let annotationsOn = false;
+let permanentAnnotationsOn = false;
 let ws; // WebSocket for Kinect data
 let latestDepthFrame = null; // Store the latest depth frame
 let enableKinectConnection = true; 
@@ -71,13 +76,11 @@ function setup() {
     setupKinectConnection();
   }
 }
-
-
-
-
 // --- The rest of the file is largely unchanged ---
 
 function draw() {
+    frameRate(60);
+
   if (!isSketchStarted) {
     background(255);
     fill(0);
@@ -88,25 +91,28 @@ function draw() {
     text('Click on the mouse to endure!', width / 2, height / 2);
     return;
   }
-  frameRate(60);
-  background(0, 15);
+
+  if (frameCount % 900 > 600 || permanentAnnotationsOn) {
+    annotationsOn = true;
+  } else {
+    annotationsOn = false;
+  }
+
+  
   for (let ghost of ghosts) {
     ghost.flock(ghosts);
     ghost.update();
-    ghost.display();
   }
-  if (frameCount % 600 > 100) { annotationsOn = false; } else { annotationsOn = true; }
-  //add a count console.log for the ghosts,type of image index count
-  // let imgIndexCount = {};
-  // for (let ghost of ghosts) {
-  //   imgIndexCount[ghost.imgIndex] = (imgIndexCount[ghost.imgIndex] || 0) + 1;
-  // }
-  // console.log('Ghost Image Index Counts:', imgIndexCount);
 
-  if (annotationsOn) {
-    background(0);
+  if (!annotationsOn) {
+    background(0,30);
+
     for (let ghost of ghosts) {
       ghost.display();
+    }
+  } else {
+    background(0);
+    for (let ghost of ghosts) {
       ghost.annotate();
     }
     textSize(16);
@@ -114,16 +120,40 @@ function draw() {
     textAlign(LEFT, TOP);
     fill(255);
     text('Richard Qian Li, q.li@nyu.edu', 10, 10);
+    text('Press "A" to toggle debug mode', 10, 60);
+    text('Press Space to Pause/Resume Audio', 10, 100);
+    text( 'Press F5 to Restart Sketch', 10, 120);
+    text('Flocking Cohesion: ' + round(flockingCohesionWeight,3) +'\nPress "+" or "-" to adjust ', 10, 150);
+    text('Flocking Alignment: ' + round(flockingAlignmentWeight,3) + '\nPress "]" or "[" to adjust ', 10, 200);
+    text('Flocking Separation: ' + round(flockingSeparationWeight,3) + '\nPress ">" or "<" to adjust ', 10, 250);
+
   }
+
+  
+  //add a count console.log for the ghosts,type of image index count
+  // let imgIndexCount = {};
+  // for (let ghost of ghosts) {
+  //   imgIndexCount[ghost.imgIndex] = (imgIndexCount[ghost.imgIndex] || 0) + 1;
+  // }
+  // console.log('Ghost Image Index Counts:', imgIndexCount);
+
+  // if (annotationsOn) {
+  //   background(0);
+  //   for (let ghost of ghosts) {
+  //     ghost.display();
+  //     ghost.annotate();
+  //   }
+    
+  // }
   // Visualize depth data
   for (let x = 0; x < width; x += 20) {
     for (let y = 0; y < height; y += 20) {
       let depthValue = kinectDepth(x, y);
-      if (depthValue !== null && depthValue > 0) {
+      if (depthValue !== null && depthValue > 0 && annotationsOn) {
         fill(255, 20000/depthValue);
         noStroke();
         // ellipse(x, y, 50000 / depthValue, 50000 / depthValue);
-        rect(x, y, 5,5);
+        rect(x, y, 50000 / depthValue);
       }
     }
   }
@@ -141,14 +171,7 @@ function mousePressed() {
   }
 }
 
-function keyPressed() {
-  if (key === 'a' || key === 'A') {
-    annotationsOn = !annotationsOn;
-  }
-  // if (key === 'c' || key === 'C') {
-  //   toggleKinectConnection();
-  // }
-}
+
 
 function setupKinectConnection() {
   try {
@@ -212,4 +235,54 @@ function playSound(buffer, volume = 1.0, pan = 0.0, rate = 1.0) {
   
   // Play the sound immediately and let it be garbage collected.
   source.start(0);
+}
+
+function keyPressed() {
+  if (key === 'a' || key === 'A') {
+    permanentAnnotationsOn = !permanentAnnotationsOn;
+  }
+  // if (key === 'c' || key === 'C') {
+  //   toggleKinectConnection();
+  // }
+  if (key === ']') {
+    flockingAlignmentWeight += 0.01;
+    console.log('Alignment Weight:', flockingAlignmentWeight);
+  } else if (key === '[') {
+    flockingAlignmentWeight = max(0, flockingAlignmentWeight - 0.01);
+    console.log('Alignment Weight:', flockingAlignmentWeight);
+  }
+  if (key === '+'|| key === '=') {
+    flockingCohesionWeight += 0.01;
+    console.log('Cohesion Weight:', flockingCohesionWeight);
+  } else if (key === '-'|| key === '_') {
+    flockingCohesionWeight = max(0, flockingCohesionWeight - 0.01);
+    console.log('Cohesion Weight:', flockingCohesionWeight);
+  }
+  if (key === '>'|| key === '.') {
+    flockingSeparationWeight += 0.01;
+    console.log('Separation Weight:', flockingSeparationWeight);
+    separationDistance += 10;
+  } else if (key === '<'|| key === ',') {
+    flockingSeparationWeight = max(0, flockingSeparationWeight - 0.01);
+    separationDistance = max(0, separationDistance - 10);
+    console.log('Separation Weight:', flockingSeparationWeight);
+  }
+  if (key === ' ') {
+    if (isSketchStarted) {
+      if (darkSound.isPlaying()) {
+        darkSound.pause();
+      } else {
+        darkSound.loop();
+      }
+      //p5 loop or noLoop
+      if (isLooping()) {
+        noLoop();
+      } else {
+        loop();
+      }
+    } else {
+      isSketchStarted = true; 
+    } 
+  }
+    
 }

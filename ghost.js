@@ -21,14 +21,15 @@ class Ghost {
     let alignment = this.computeAlignment(allGhosts);
     let separation = this.computeSeparation(allGhosts);
     let boundary = this.computeBoundary();
-    cohesion.mult(0.01);
-    alignment.mult(0.02);
-    separation.mult(0.05);
+    cohesion.mult(flockingCohesionWeight);
+    alignment.mult(flockingAlignmentWeight);
+    separation.mult(flockingSeparationWeight);
     boundary.mult(1);
     this.acc.add(cohesion).add(alignment).add(separation).add(boundary);
   }
 
   update() {
+    //physics update
     this.calculateSteering();
     if (this.isPlayingSound > 0) {
       this.isPlayingSound--;
@@ -38,29 +39,20 @@ class Ghost {
     speed = constrain(speed, 0.3 * maxSpeed, 1.2 * maxSpeed);
     this.vel.setMag(speed);
     this.pos.add(this.vel);
-  }
-
-  display() {
-    push();
-    translate(this.pos.x, this.pos.y);
-    rotate(this.vel.heading() + PI / 2);
-
-    if (!this.isLeftSteering && this.imgIndex !== 0) {
-      scale(-1, 1);
-    }
-
+    //depth interaction
     let depth = kinectDepth(this.pos.x, this.pos.y);
     if (depth && depth > 0) {
-      this.depthHistory.push(depth);
+      this.depthHistory.push(depth); 
       if (this.depthHistory.length > this.maxDepthHistory) {
         this.depthHistory.shift();
       }
+      
       let avgDepth = this.depthHistory.reduce((sum, val) => sum + val, 0) / this.depthHistory.length;
       let lastScale = this.scale;
       this.scale = 2000 / avgDepth;
 
       if (this.scale / lastScale > 1.01 || this.scale > 1.3) {
-        this.imgIndex = 6;
+        this.imgIndex = 4; 
         if (this.scale / lastScale > 1.03 || this.scale > 1.5) {
           this.imgIndex = 5;
         }
@@ -74,17 +66,89 @@ class Ghost {
         }
       }
     }
+    this.opacity += random(-3, 3);
+    this.opacity = constrain(this.opacity, 3, 160);
+  }
 
+  display() {
+    push();
+    translate(this.pos.x, this.pos.y);
+    rotate(this.vel.heading() + PI / 2);
+    if (!this.isLeftSteering && this.imgIndex !== 0) {
+      scale(-1, 1);
+    }
     this.colorization.r = constrain(this.scale * this.opacity * 3, 220, 255);
     this.colorization.g = constrain(this.scale * this.opacity * 3.5, 220, 255);
     tint(this.colorization.r, this.colorization.g, this.colorization.b, this.opacity);
-    if (annotationsOn) {
-      tint(this.imgIndex * 40, 255 - this.imgIndex * 40, 100+ this.imgIndex * 30, 255);
-    }
-    this.opacity += random(-3, 3);
-    this.opacity = constrain(this.opacity, 3, 160);
-
     image(ghostImages[this.imgIndex], 0, 0, 160 * this.scale * (this.age / 13) ** 0.2, 240 * this.scale * sqrt(this.age / 13));
+    pop();
+  }
+
+  annotate() {
+    push();
+    translate(this.pos.x, this.pos.y);
+    rotate(this.vel.heading() + PI / 2);
+    if (!this.isLeftSteering && this.imgIndex !== 0) {
+      scale(-1, 1);
+    }
+    switch (this.imgIndex) {
+      case 0: // neutral
+        tint(0, 0, 255, 255); //blue
+        break;
+      case 1: // slight turn
+        tint(255, 255, 0, 255); // yellow
+        break;
+      case 2: // moderate turn
+        tint(255, 255, 255, 255); // 
+        break;
+      case 3: // sharp turn
+        tint(255, 0, 0, 255); // red
+        break;
+      case 4: //dive down
+        tint(0, 255, 255, 255); // blue
+        break;
+      case 5: //dive down more
+        tint(0, 255, 255, 255); // cyan
+        break;
+      case 6: // dash forward
+        tint(127, 255, 255, 255);
+        break;
+      case 7: // skid stop
+        tint(255, 0, 255, 255); 
+        break;
+    }
+    image(ghostImages[this.imgIndex], 0, 0, 80, 120 );
+    pop();
+    push();
+    translate(this.pos.x, this.pos.y);
+    stroke(255, 0, 0);
+    strokeWeight(2);
+    line(0, 0, this.vel.x * 10, this.vel.y * 10);
+
+    if (this.vel.mag() > 0) {
+    //arrowhead for velocity
+      push();
+      translate(this.vel.x * 10, this.vel.y * 10);
+      rotate(this.vel.heading());
+      line(0, 0, -8, -3);
+      line(0, 0, -8, 3);
+      pop();
+    }
+    fill(255, 255, 0);
+    noStroke();
+    textSize(12);
+    text(round(this.age), 0, 0);
+    stroke(255);
+    strokeWeight(2);
+    line(0, 0, this.acc.x * 200, this.acc.y * 200);
+    if (this.acc.mag() > 0) {
+      push();
+      translate(this.acc.x * 200, this.acc.y * 200);
+      rotate(this.acc.heading());
+      line(0, 0, -8, -3);
+      line(0, 0, -8, 3);
+      pop();
+    }
     pop();
   }
 
@@ -177,9 +241,9 @@ class Ghost {
     this.isLeftSteering = steerProjection > 0;
     if (steerMag < 0.05) {
       this.imgIndex = 0;
-    } else if (steerMag < 0.1) {
+    } else if (steerMag < 0.15) {
       this.imgIndex = 1;
-    } else if (steerMag < 0.2) {
+    } else if (steerMag < 0.3) {
       this.imgIndex = 2;
     } else {
       this.imgIndex = 3;
@@ -196,19 +260,5 @@ class Ghost {
     }
   }
   
-  annotate() {
-    push();
-    translate(this.pos.x, this.pos.y);
-    stroke(255, 0, 0);
-    strokeWeight(2);
-    line(0, 0, this.vel.x * 10, this.vel.y * 10);
-    fill(255, 255, 0);
-    noStroke();
-    textSize(12);
-    text(round(this.age), 0, 0);
-    stroke(0, 255, 0);
-    strokeWeight(2);
-    line(0, 0, this.acc.x * 100, this.acc.y * 100);
-    pop();
-  }
+
 }
