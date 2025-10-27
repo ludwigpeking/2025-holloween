@@ -11,7 +11,7 @@ class Ghost {
     this.imgIndex = 0;
     this.isLeftSteering = true;
     this.depthHistory = [];
-    this.maxDepthHistory = 120;
+    this.maxDepthHistory = 15; // for lower FPS
     this.isPlayingSound = 0;
   }
 
@@ -49,7 +49,15 @@ class Ghost {
       
       let avgDepth = this.depthHistory.reduce((sum, val) => sum + val, 0) / this.depthHistory.length;
       let lastScale = this.scale;
-      this.scale = 2000 / avgDepth;
+      //for the setting now, the background depth is around 3-4 meters, so the ghosts should be less sensitive to 2 meters+ , but be more sensitive to 1-2.5 meters
+      //sanity test 
+      this.scale = 4000000 / avgDepth**2;
+      // if avgDepth == 3000, scale = 0.44;
+      // if avgDepth == 2000, scale = 1; 
+      // avgDepth = 1500, scale = 1.77;
+      // avgDepth = 1000, scale = 4;
+
+      // this.scale = 2000 / avgDepth;
 
       if (this.scale / lastScale > 1.01 || this.scale > 1.3) {
         this.imgIndex = 4; 
